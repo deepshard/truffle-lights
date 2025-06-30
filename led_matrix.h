@@ -123,7 +123,7 @@ class LEDRingBase{
     
     
         void set_led(int idx, led_color_t color) override {
-            if(idx < 0 || idx >= N) throw std::out_of_range("LED index out of range");
+            if(idx < 0 || static_cast<std::size_t>(idx) >= N) throw std::out_of_range("LED index out of range");
             if(color)
                 leds[idx] = leds[idx] + color;
             else 

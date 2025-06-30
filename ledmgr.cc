@@ -72,6 +72,26 @@ void LEDManager::PlayAnimation(Animatable& animation, int duration_seconds) {
     }
 }
 
+void LEDManager::PlayAnimation(RotatingOrbAnimator& animation, int duration_seconds) {
+    if (!functional) {
+        std::cerr << "[LEDManager] Error: Cannot play animation, not initialized." << std::endl;
+        return;
+    }
+
+    auto start_time = std::chrono::steady_clock::now();
+    auto duration = std::chrono::seconds(duration_seconds);
+
+    while (std::chrono::steady_clock::now() - start_time < duration) {
+        // RotatingOrbAnimator uses a different interface - it returns the sleep time
+        uint64_t sleep_micros = animation(this);
+        
+        // Convert microseconds to milliseconds and sleep
+        if (sleep_micros > 0) {
+            std::this_thread::sleep_for(std::chrono::microseconds(sleep_micros));
+        }
+    }
+}
+
 void LEDManager::update_leds() {
     if (!functional) return;
     char tx[LED_COUNT * 24] = {0};

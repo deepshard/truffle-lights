@@ -12,6 +12,10 @@ class LEDMatrix;
 class Animatable;
 
 namespace tfw {
+    class RotatingOrbAnimator; // Forward declaration
+}
+
+namespace tfw {
 
 class LEDManager {
 public:
@@ -23,6 +27,9 @@ public:
 
     // Plays a given animation for a specified duration.
     void PlayAnimation(Animatable& animation, int duration_seconds);
+    
+    // Overload for RotatingOrbAnimator which uses a different interface
+    void PlayAnimation(RotatingOrbAnimator& animation, int duration_seconds);
 
     // Turns all LEDs off.
     void Clear();
