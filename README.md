@@ -13,5 +13,8 @@ Truffle Lights provides various LED animations that can be customized by modifyi
 
 
 compilign instructions
-make
-make clean
+- make
+- make clean
+
+watch video in /media to see animations
+idle -> rtu -> error -> reasoning -> loading -> connecting (grpc) -> typing(aslower then faster)
