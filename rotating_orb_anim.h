@@ -31,6 +31,10 @@ public:
     // Call once per frame. Returns how long (in µs) the caller should sleep.
     uint64_t operator()(LEDManager* mgr);
 
+
+    void setRotationSpeed(float deg_per_sec) { rot_speed = deg_per_sec; }
+    float getRotationSpeed() const { return rot_speed; }
+
 private:
     HSV          orbHSV;
     led_color_t  bg_colour;

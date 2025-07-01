@@ -538,7 +538,7 @@ private:
     float current_size = 0.0f;
 
     float phase       = 0.0f;    // 0-2 triangle position
-    float phase_inc   = 0.004f;  // speed (tweak)
+    float phase_inc   = 0.002f;  // speed (tweak)
   
     std::chrono::time_point<std::chrono::high_resolution_clock> last_update;
     /* cached LED geometry          */

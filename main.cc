@@ -3,7 +3,7 @@
 #include "rotating_orb_anim.h"
 #include <iostream>
 #include <memory>
-//these look so good man
+
 int main() {
     // keot this here just in case
     using namespace tfw;
@@ -20,8 +20,8 @@ int main() {
     // 2. Define the animations we want to show
     Glow idle_animation(5, led_color_t{40, 120, 255}, led_color_t{5,5,10});
     
-    // IDLE
-    const int idle_duration_s = 25;
+    // IDLE blue glow
+    const int idle_duration_s = 15;
     std::cout << "\nPlaying IDLE animation for " << idle_duration_s << " seconds..." << std::endl;
     led_manager->PlayAnimation(idle_animation, idle_duration_s);
 
@@ -38,26 +38,33 @@ int main() {
     std::cout << "\nPlaying ERROR animation for " << error_duration_s << " seconds..." << std::endl;
     led_manager->PlayAnimation(error_animation, error_duration_s);
 
-    // "Reasoning" - White orb with grey background
+    // "Reasoning" - White orb with grey background when models thinking (user hits enter)
     RotatingOrbAnimator reasoning_animation({0.0f, 0.0f, 1.0f}, {128, 128, 128});
     const int reasoning_duration_s = 15;
     std::cout << "\nPlaying REASONING animation for " << reasoning_duration_s << " seconds..." << std::endl;
     led_manager->PlayAnimation(reasoning_animation, reasoning_duration_s);
 
 
-    // LOADER use for booting up (models loading)
+    // LOADER use for booting up (models loading) anythign for laoding, app install, otas, client update
     Loader loader_animation({20, 150, 40}, 3000); // Green loader, 3 second duration (you can cchange ezpz)
     const int loader_duration_s = 15;
     std::cout << "\nPlaying LOADER animation for " << loader_duration_s << " seconds..." << std::endl;
     led_manager->PlayAnimation(loader_animation, loader_duration_s);
 
 
-    // Connecting - Orange orb with black background
+    // Connecting - Orange orb with black background (can tune colors) wanna use for wifi/gpc connection states
     RotatingOrbAnimator connecting_animation({30.0f, 1.0f, 1.0f}, {0, 0, 0}); // Orange orb, black background just change color for a different state
     const int connecting_duration_s = 15;
     std::cout << "\nPlaying CONNECTING animation for " << connecting_duration_s << " seconds..." << std::endl;
     led_manager->PlayAnimation(connecting_animation, connecting_duration_s);
-    
+
+    //TYPING 
+    //u can control the spped of this one, want to amke this a coorelation to users typing (classifying requests?) the dfaster they type the faster this guy spins
+    RotatingOrbAnimator typing_animation({240.0f, 1.0f, 1.0f}, {200, 200, 220}, 90.0f); // start slower
+    std::cout << "\nPlaying TYPING animation: 10s slow, 10s fast..." << std::endl;
+    led_manager->PlayAnimation(typing_animation, 10); // first half at 90 deg/s
+    typing_animation.setRotationSpeed(300.0f);        // speed up for second half
+    led_manager->PlayAnimation(typing_animation, 10);
 
     // 4. Clean up
     std::cout << "\nDemo finished. Cleaning up." << std::endl;
