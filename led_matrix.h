@@ -450,103 +450,105 @@ class LEDRingBase{
     
     // was old glow version, this one doesnt flash still needs morepolish
     //but yea used by rtu, error and idle
-    class Glow : public Animatable{
-        public:
-            Glow(int size = 3, led_color_t base_color = {255,255,255}, led_color_t min_color = {0,0,0}) 
-            : base_color(base_color), min_color(min_color), max_size(size) {
-            if(size < 3) throw std::invalid_argument("Glow size must be at least 3");
-            this->SetOrigin(0.f, 0);
-            leds.push_back({{DEG2RAD(0.f), 0.0f}, {0,0,0}});
 
-            for(int i = 0; i < size; ++i){
-                for(int j = 0; j < ring_sizes[i]; ++j){
-                    leds.push_back({{DEG2RAD(ringunit(i, j)), static_cast<float>(i)}, {0,0,0}});
-                }
-            }
-            current_size = 0.f;
-            inc = 0.015f;
-            last_update = std::chrono::high_resolution_clock::now();
+
+    // ─── Glow (smooth triangle-wave version) ───────────────────────
+class Glow : public Animatable {
+public:
+    Glow(int size = 3,
+         led_color_t base_color = {255,255,255},
+         led_color_t min_color  = {  0,  0,  0})
+        : base_color(base_color),
+          min_color(min_color),
+          max_size(size)
+    {
+        if (size < 3) throw std::invalid_argument("Glow size must be at least 3");
+
+        // geometry
+        this->SetOrigin(0.f, 0);
+        leds.push_back({{DEG2RAD(0.f), 0.0f}, {0,0,0}});        // centre
+
+        for (int ring = 0; ring < size; ++ring)
+            for (int j = 0; j < ring_sizes[ring]; ++j)
+                leds.push_back({{DEG2RAD(ringunit(ring, j)),
+                                 static_cast<float>(ring)},
+                                 {0,0,0}});
+
+        /* --- NEW driver state ---------------------------------- */
+        phase = 0.0f;                    // 0 … 2  (wraps)
+        // frame-rate independent speed: 0.015 ≈ 1.5 s full cycle
+        constexpr float sec_per_frame = 0.0008f;                // 800 µs guard
+        phase_inc = 0.015f;              // tweak to taste
+        /* ------------------------------------------------------- */
+
+        last_update = std::chrono::high_resolution_clock::now();
+    }
+
+    /* -------- animation scaffold -------------------------------- */
+    void Update() override
+    {
+        /* -------- 1 · timing guard first -------- */
+        uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(
+                          std::chrono::high_resolution_clock::now() - last_update).count();
+        if (us < 800) return;
+        last_update = std::chrono::high_resolution_clock::now();
+
+        /* -------- 2 · clear local cache ---------- */
+        for (auto& led : leds) led.color = min_color;
+
+        /* -------- 3 · cosine-driven radius ------- */
+        phase += phase_inc;
+        if (phase >= 2.0f) phase -= 2.0f;
+
+        // smooth 0→max→0 using  (1-cos(π·p))/2
+        float x = M_PI_F * phase;                   // 0 … 2π
+        current_size = (1.0f - cosf(x)) * 0.5f *
+                       static_cast<float>(max_size);
+
+        /* -------- 4 · per-ring intensity --------- */
+        set_ring(0, min_color +
+                     ((base_color - min_color) * 0.25f));
+
+        for (int ring = 1; ring < max_size; ++ring)
+        {
+            float d = fabsf(current_size - static_cast<float>(ring));
+            /* Gaussian-ish fall-off: smooth halo over neighbours   *
+             *  d=0 → 1   d=1 → 0.37   d=2 → 0.05 (effectively off) */
+            float intensity = expf(-d * d * 0.7f);
+
+            // natural distance fade
+            intensity *= (1.0f - ring * 0.1f);
+
+            led_color_t ring_color = min_color +
+                                      ((base_color - min_color) * intensity);
+            set_ring(ring, ring_color);
         }
-        void set_ring(int ring, led_color_t color){
-            int idx = 1;
-             for(int i = 0; i < ring; ++i){
-                idx += ring_sizes[i];
-            }
-            for(int i = 0; i < ring_sizes[ring]; ++i){
-                leds[idx + i].color = color;
-            }
-        }
-        void Update() override {
-            for(auto& led : leds){
-                led.color = min_color;
-            }
-            
-            uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - last_update).count();
-            if(us < 800) return; // smoothing
-            last_update = std::chrono::high_resolution_clock::now();
-            
-            // Constant dim core intensity to ensure center never goes completely off
-            const float dim_core_intensity = 0.25f;
-            
-            // CRITICAL: Set center ring first to ensure it's always on regardless of animation phase
-            set_ring(0, min_color + ((base_color - min_color) * dim_core_intensity));
-            
-            // For each ring, calculate its brightness based on a single, symmetrical pulse
-            const float pulse_width = 2.5f; // Defines the softness of the pulse edge
-            for (int ring = 1; ring < max_size; ring++) {
-                float intensity = 0.0f;
+    }
 
-                // Calculate the distance of the ring from the current center of the pulse
-                const float dist = fabsf(current_size - static_cast<float>(ring));
+    void Draw(LEDMatrix *matrix) override
+    {
+        for (auto &led : leds)
+            matrix->set_led(origin + led.origin, led.color);
+    }
 
-                // The pulse has a soft edge. We only calculate intensity for rings inside the pulse width.
-                if (dist < pulse_width) {
-                    // Normalize distance to a 0.0-1.0 value.
-                    // 1.0 = at the center of the pulse. 0.0 = at the very edge.
-                    const float t = 1.0f - (dist / pulse_width);
-                    // Use a smoothstep function for a soft, organic falloff from the pulse center.
-                    intensity = t * t * (3.0f - 2.0f * t);
-                }
-                
-                // Apply a natural falloff from the matrix center to make the pulse dimmer as it moves outward.
-                const float distance_falloff = 1.0f - (static_cast<float>(ring) * 0.1f);
-                intensity *= std::max(0.0f, distance_falloff);
-                
-                // Apply final intensity to the color
-                const led_color_t ring_color = min_color + ((base_color - min_color) * intensity);
-                set_ring(ring, ring_color);
-            }
-            
-            // Update animation timing
-            current_size += inc;
-            if(current_size >= static_cast<float>(max_size)) { 
-                inc = inc * -1.f; 
-                current_size = static_cast<float>(max_size) - 0.01f; 
-                pulses++; 
-            }
-            if(current_size <= 0.f) { 
-                inc = inc * -1.f; 
-                current_size = 0.001f; 
-                pulses++; 
-            }
-        }
+private:
 
-        void Draw(LEDMatrix* matrix) override {
-            for(auto& led : leds){
-                auto real_pos = origin + led.origin;
-                matrix->set_led(real_pos, led.color);
-            }
-        }
+    led_color_t base_color, min_color;
+    int   max_size;
+    float current_size = 0.0f;
 
-        led_color_t base_color;
-        led_color_t min_color;
-        int max_size;
-        float current_size;
-        float inc;
-        int pulses = 0;
-        std::chrono::time_point<std::chrono::high_resolution_clock> last_update;
-    };
-    
+    float phase       = 0.0f;    // 0-2 triangle position
+    float phase_inc   = 0.004f;  // speed (tweak)
+  
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_update;
+    /* cached LED geometry          */
+    void set_ring(int ring, led_color_t color) {
+        int idx = 1; for (int i = 0; i < ring; ++i) idx += ring_sizes[i];
+        for (int i = 0; i < ring_sizes[ring]; ++i) leds[idx+i].color = color;
+    }
+};
+
+
     class Loader : public Animatable {
     public:
         Loader(led_color_t color = {20, 150, 40}, uint32_t duration_ms = 1500) 

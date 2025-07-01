@@ -21,7 +21,7 @@ int main() {
     Glow idle_animation(5, led_color_t{40, 120, 255}, led_color_t{5,5,10});
     
     // IDLE
-    const int idle_duration_s = 15;
+    const int idle_duration_s = 25;
     std::cout << "\nPlaying IDLE animation for " << idle_duration_s << " seconds..." << std::endl;
     led_manager->PlayAnimation(idle_animation, idle_duration_s);
 
