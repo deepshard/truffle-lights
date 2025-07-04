@@ -408,7 +408,7 @@ class LEDRingBase{
             
             // Update outer LEDs with diminishing intensity
             for (size_t i = 10; i < leds.size(); i++) {
-                int ring = (i - 10) / 6 + 3;  // Calculate the effective "ring" based on LED index
+                int ring = (i - 10) / 6 + 3;  // Effective ring for this LED
                 int position = (i - 10) % 6;  // Position within the ring
                 
                 // Apply intensity falloff based on ring position
@@ -477,8 +477,7 @@ public:
         /* --- NEW driver state ---------------------------------- */
         phase = 0.0f;                    // 0 … 2  (wraps)
         // frame-rate independent speed: 0.015 ≈ 1.5 s full cycle
-        constexpr float sec_per_frame = 0.0008f;                // 800 µs guard
-        phase_inc = 0.015f;              // tweak to taste
+        phase_inc = 0.015f;              // tweak to taste (≈1.5 s full cycle)
         /* ------------------------------------------------------- */
 
         last_update = std::chrono::high_resolution_clock::now();
@@ -538,7 +537,7 @@ private:
     float current_size = 0.0f;
 
     float phase       = 0.0f;    // 0-2 triangle position
-    float phase_inc   = 0.002f;  // speed (tweak)
+    float phase_inc   = 0.015f;  // tweak to taste (≈1.5 s full cycle)
   
     std::chrono::time_point<std::chrono::high_resolution_clock> last_update;
     /* cached LED geometry          */
@@ -775,6 +774,8 @@ private:
                 phase_start_time = std::chrono::high_resolution_clock::now();
             }
     
+            // Total progress currently unused, keep placeholder for future visualisation features
+            
             // Calculate overall transition progress (0.0 - 1.0)
             float totalDuration = T_in + T_fusion + T_flash + T_expansion + T_out;
             float elapsedTime = std::chrono::duration<float>(now - start).count();
