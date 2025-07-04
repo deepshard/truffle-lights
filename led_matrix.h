@@ -552,12 +552,15 @@ private:
     public:
         Loader(led_color_t color = {20, 150, 40}, uint32_t duration_ms = 1500) 
         : color(color), 
-          current_ring(0), 
-          current_led_on_ring(0),
-          is_finished(false) {
-            // Calculate delay between steps to match the total duration
-            animation_delay_us = (static_cast<uint64_t>(duration_ms) * 1000) / LED_COUNT;
+          duration_ms(duration_ms),
+          is_finished(false),
+          progress(0.0f),
+          gaussian_sigma(1.5f),  // Controls the spread of the gaussian effect
+          trail_length(8.0f) {   // How many LEDs the trail extends
             last_update = std::chrono::high_resolution_clock::now();
+            
+            // Pre-compute LED positions for smoother animation
+            BuildLEDLUT();
         }
 
         bool finished() const {
@@ -567,61 +570,77 @@ private:
         void Update() override {
             if (is_finished) return;
 
-            uint64_t us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - last_update).count();
-            if (us < animation_delay_us) return;
-            last_update = std::chrono::high_resolution_clock::now();
+            auto now = std::chrono::high_resolution_clock::now();
+            float elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_update).count();
+            last_update = now;
 
-            // Advance to the next LED
-            current_led_on_ring++;
+            // Update progress as a continuous float from 0 to LED_COUNT
+            float progress_speed = static_cast<float>(LED_COUNT) / static_cast<float>(duration_ms);
+            progress += progress_speed * elapsed_ms;
 
-            // If we've finished the current ring, move to the next one
-            if (current_led_on_ring > ring_sizes[current_ring]) {
-                current_ring++;
-                current_led_on_ring = 1; // Start from the first LED of the new ring
-            }
-            
-
-            if (current_ring >= 5) {
+            if (progress >= static_cast<float>(LED_COUNT + trail_length)) {
                 is_finished = true;
             }
         }
 
         void Draw(LEDMatrix* matrix) override {
-            // Draw all completed rings
-            for (int r = 0; r < current_ring; ++r) {
-                const int num_leds = ring_sizes[r];
-                // Ring 0  the center
-                if (r == 0) {
-                    matrix->set_led(0.0f, 0, color);
-                    continue;
-                }
-                const float angle_step = 360.0f / static_cast<float>(num_leds);
-                for (int l = 0; l < num_leds; ++l) {
-                    matrix->set_led(l * angle_step, r, color);
-                }
-            }
+            if (is_finished) return;
 
-            // Draw the LEDs on the current, in-progress ring
-            if (!is_finished && current_ring < 5) {
-                const int num_leds = ring_sizes[current_ring];
-                if (current_ring == 0 && current_led_on_ring > 0) {
-                     matrix->set_led(0.0f, 0, color);
-                } else {
-                    const float angle_step = 360.0f / static_cast<float>(num_leds);
-                    for (int l = 0; l < current_led_on_ring; ++l) {
-                        matrix->set_led(l * angle_step, current_ring, color);
+            // Apply smooth Gaussian wave effect
+            for (int i = 0; i < LED_COUNT; ++i) {
+                // Calculate distance from current progress position
+                float distance = std::abs(static_cast<float>(i) - progress);
+                
+                // Apply Gaussian falloff for smooth trailing effect
+                float intensity = 0.0f;
+                if (distance <= trail_length) {
+                    // Gaussian function: exp(-x²/2σ²)
+                    float gaussian_factor = std::exp(-(distance * distance) / (2.0f * gaussian_sigma * gaussian_sigma));
+                    
+                    // Additional falloff based on distance for trailing effect
+                    float trail_factor = 1.0f - (distance / trail_length);
+                    trail_factor = std::max(0.0f, trail_factor);
+                    
+                    // Combine both effects
+                    intensity = gaussian_factor * trail_factor;
+                    
+                    // Add some extra brightness at the leading edge
+                    if (distance < 0.5f) {
+                        intensity = std::min(1.0f, intensity * 1.3f);
                     }
+                }
+                
+                // Apply the intensity to the color
+                if (intensity > 0.01f) {  // Only draw if intensity is significant
+                    led_color_t smooth_color = color * intensity;
+                    polar_t led_pos = led_lut[i];
+                    matrix->set_led(led_pos, smooth_color);
                 }
             }
         }
 
     private:
         led_color_t color;
-        uint64_t animation_delay_us;
-        int current_ring;
-        int current_led_on_ring;
+        uint32_t duration_ms;
         bool is_finished;
+        float progress;              // Current position in the animation (0 to LED_COUNT)
+        float gaussian_sigma;        // Controls the spread of the gaussian effect
+        float trail_length;          // Length of the trailing effect
         std::chrono::time_point<std::chrono::high_resolution_clock> last_update;
+        
+        // Pre-computed lookup table for LED positions
+        std::array<polar_t, LED_COUNT> led_lut;
+        
+        void BuildLEDLUT() {
+            int idx = 0;
+            for (int ring = 0; ring < 5; ++ring) {
+                int count = ring_sizes[ring];
+                for (int i = 0; i < count; ++i) {
+                    float theta = (ring == 0) ? 0.0f : DEG2RAD((360.0f / count) * i);
+                    led_lut[idx++] = polar_t{theta, static_cast<float>(ring)};
+                }
+            }
+        }
     };
     
     //helper for ang diff
